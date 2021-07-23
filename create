@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+
+EXT="java"
+DEFAULT_OUTPUT_DIRECTORY="Submissions"
+
+fFlag=false
+wFlag=false
+aFlag=false
+
+usage() {
+    echo "Usage: $0 [-a <assignment folder> ] [-w week number] [-f <file1 file2 file3>]" 1>&2
+    exit 1
+}
+
+check_output_file_exists() { #takes filelist as input
+    if test -f "$1"; then
+        echo "Output File $1 already exists!"
+        echo "One of more files will be overwritten."
+    fi
+}
+
+process_files() {
+    files="${1}"
+    for f in ${files}; do
+        new_files+=("${WEEK_FOLDER_NAME}/${ASSIGNMENT_FOLDER}/${f}.${EXT}")
+    done
+}
+
+while getopts ":w:a:f:" opt; do
+    case ${opt} in
+    w) # process Week
+        wFlag=true
+        week_number=$OPTARG
+        WEEK_FOLDER_NAME="Week ${week_number}"
+        ;;
+    a) # assignment directory
+        aFlag=true
+        ASSIGNMENT_FOLDER="${OPTARG}"
+        ;;
+    f) # process files
+        fFlag=true
+        files=$OPTARG
+        new_files=()
+        ;;
+    *)
+        usage
+        ;;
+    esac
+done
+
+if ! $fFlag || ! $wFlag || ! $aFlag; then
+    echo "Missing arguments" >&2
+    usage
+    exit 1
+fi
+
+echo "-----Submission input-----"
+echo "Week: ${week_number}"
+echo "Assignment directory: ${ASSIGNMENT_FOLDER}"
+process_files "$files"
+echo "Files to process: ${new_files[@]}"
+
+OUTPUT_NAME="${WEEK_FOLDER_NAME}.zip"
+check_output_file_exists ${OUTPUT_NAME}
+
+echo "-----Submission output-----"
+echo "Output filename: ${OUTPUT_NAME}"
+output_path="${DEFAULT_OUTPUT_DIRECTORY}/${OUTPUT_NAME}"
+echo "Output path: ${output_path}"
+
+#If you want to store all the files in folder under their name without a directory indication, you can use the -j option.
+#source: https://unix.stackexchange.com/questions/245856/zip-a-file-without-including-the-parent-directory
+zip -j "${output_path}" "${new_files[@]}"
