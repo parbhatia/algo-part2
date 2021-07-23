@@ -9,13 +9,12 @@ public class BoggleSolver {
     private HashSet<String> validWords;
     private Node root;
     private Cell[][] cells;
-    private Node recentPrefixNode;
 
     private class Node {
         private int score;
-        private int depth;
         private char c;
-        private Node left, mid, right, parent;
+        private Node left, mid, right;
+        private String word;
     }
 
     // Initializes the data structure using the given array of strings as the
@@ -41,7 +40,6 @@ public class BoggleSolver {
     }
 
     private Node get(Node x, String key, int d) {
-        // ++prefixChecks;
         if (x == null) {
             return null;
         }
@@ -57,40 +55,32 @@ public class BoggleSolver {
     }
 
     private void put(String key, int score) {
-        root = put(root, null, key, score, 0, 0);
+        root = put(root, key, score, 0);
     }
 
-    private Node put(Node x, Node parent, String key, int score, int d, int depth) {
+    // store entire string along with score, so we don't have to append strings in
+    // dfs prefix queries
+    private Node put(Node x, String key, int score, int d) {
         char c = key.charAt(d);
         if (x == null) {
             x = new Node();
             x.c = c;
-            x.parent = parent;
-            x.depth = depth;
         }
         if (c < x.c) {
-            x.left = put(x.left, x, key, score, d, depth);
+            x.left = put(x.left, key, score, d);
         } else if (c > x.c) {
-            x.right = put(x.right, x, key, score, d, depth);
+            x.right = put(x.right, key, score, d);
         } else if (d < key.length() - 1) {
-            x.mid = put(x.mid, x, key, score, d + 1, depth + 1);
+            x.mid = put(x.mid, key, score, d + 1);
         } else {
             x.score = score;
+            x.word = key;
         }
         return x;
     }
 
     private boolean validCell(int row, int col) {
         return row >= 0 && row < board.rows() && col < board.cols() && col >= 0;
-    }
-
-    // returns if a string is a prefix in our trie
-    private Node validPrefixFromNode(Node n, String prefix) {
-        // StdOut.println(prefix + " : " + n.depth);
-        if (n == null)
-            return null;
-        Node x = get(n, prefix, n.depth);
-        return x;
     }
 
     private class Cell {
@@ -105,13 +95,6 @@ public class BoggleSolver {
             this.c = c;
             this.visited = false;
             this.neighbours = new Bag<Cell>();
-        }
-
-        public String getFilteredChar() {
-            if (c == 'Q') {
-                return "QU";
-            }
-            return Character.toString(c);
         }
 
         public boolean visited() {
@@ -150,7 +133,7 @@ public class BoggleSolver {
         for (int i = -1; i <= 1; ++i) {
             for (int j = -1; j <= 1; ++j) {
                 if (i == 0 && j == 0)
-                    continue;
+                    continue; // don't add own cell to its neighbor
                 int newrow = c.row + i;
                 int newcol = c.col + j;
                 if (validCell(newrow, newcol)) {
@@ -160,74 +143,49 @@ public class BoggleSolver {
         }
     }
 
-    private Node getParent(Node n) {
-        if (n == root)
-            return n;
-        else
-            return n.parent;
-    }
-
-    private void dfs(Cell c, String prefixSoFar) {
-        c.visit();
-        Node startingNode = root;
-        if (recentPrefixNode != null) {
-            int recentPrefixNodeLength = recentPrefixNode.depth + 2;
-            if (prefixSoFar.length() == recentPrefixNodeLength) {
-                startingNode = getParent(recentPrefixNode);
-            } else if (prefixSoFar.length() - 1 == recentPrefixNodeLength) {
-                startingNode = recentPrefixNode;
+    private Node getNode(Node x, char c) {
+        if (x == null) {
+            return null;
+        }
+        if (c < x.c) {
+            return getNode(x.left, c);
+        } else if (c > x.c) {
+            return getNode(x.right, c);
+        } else {
+            if (c == 'Q') {
+                Node nextNode = getNode(x.mid, 'U'); // search next Node with U
+                return nextNode;
+            } else {
+                return x;
             }
         }
-        Node validPrefixNode = validPrefixFromNode(startingNode, prefixSoFar);
-        recentPrefixNode = validPrefixNode;
-        if (validPrefixNode != null) {
-            if (validPrefixNode.score > 0) {
-                validWords.add(prefixSoFar);
+    }
+
+    // Efficient DFS without storing/creating new strings and without redoing work
+    // of prefix query
+    private void dfs(Cell c, Node currNode) {
+        if (currNode == null)
+            return;
+        c.visit();
+        Node prefixNode = getNode(currNode, c.c);
+        if (prefixNode != null) {
+            if (prefixNode.score > 0) { // check if prefix is a word
+                validWords.add(prefixNode.word);
             }
             for (Cell n : c.neighbours()) {
                 if (!n.visited()) {
-                    String newPrefix = prefixSoFar + n.getFilteredChar();
-                    dfs(n, newPrefix);
+                    dfs(n, prefixNode.mid); // propogate dfs on next node
                 }
             }
         }
         c.unVisit();
     }
 
-    // // Node based dfs version without storing/creating new strings
-    // private void dfs(Cell c, Node curr, String prefixSoFar) {
-    // c.visit();
-    // Node startingNode = root;
-    // if (recentPrefixNode != null) {
-    // int recentPrefixNodeLength = recentPrefixNode.depth + 2;
-    // if (prefixSoFar.length() == recentPrefixNodeLength) {
-    // startingNode = getParent(recentPrefixNode);
-    // } else if (prefixSoFar.length() - 1 == recentPrefixNodeLength) {
-    // startingNode = recentPrefixNode;
-    // }
-    // }
-    // Node validPrefixNode = validPrefixFromNode(startingNode, prefixSoFar);
-    // recentPrefixNode = validPrefixNode;
-    // if (validPrefixNode != null) {
-    // if (validPrefixNode.score > 0) {
-    // validWords.add(prefixSoFar);
-    // }
-    // for (Cell n : c.neighbours()) {
-    // if (!n.visited()) {
-    // String newPrefix = prefixSoFar + n.getFilteredChar();
-    // dfs(n, newPrefix);
-    // }
-    // }
-    // }
-    // c.unVisit();
-    // }
-
     private void enumerateAllStrings() {
         for (int row = 0; row < board.rows(); ++row) {
             for (int col = 0; col < board.cols(); ++col) {
                 Cell cell = cells[row][col];
-                recentPrefixNode = null;
-                dfs(cell, cell.getFilteredChar());
+                dfs(cell, root);
             }
         }
     }
@@ -280,8 +238,6 @@ public class BoggleSolver {
             StdOut.println(word);
             score += solver.scoreOf(word);
         }
-        // StdOut.println("SKIPPED PREFIXES # = " + solver.skippedPrefixChecks);
-        // StdOut.println("EVALUTED PREFIXES # = " + solver.prefixChecks);
         StdOut.println("Score = " + score);
         StdOut.println("Total words = " + count);
     }
